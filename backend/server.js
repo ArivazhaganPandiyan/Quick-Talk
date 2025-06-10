@@ -31,15 +31,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 
-// Serve static files from frontend
-app.use(express.static(path.join(__dirname, "frontend", "dist")));
+// ===== REMOVED FRONTEND SERVING =====
+// (Render should only serve backend API)
+// ====================================
 
-// Handle client-side routing
-app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "frontend", "dist", "index.html"));
-});
-
-// Error handling middleware (should be after all routes)
+// Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({
@@ -48,7 +44,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Server startup sequence
+// Server startup
 const startServer = async () => {
     try {
         console.log("Connecting to MongoDB...");
@@ -64,16 +60,13 @@ const startServer = async () => {
     }
 };
 
-// Start the server
 startServer();
 
-// Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
     console.error("Unhandled Rejection:", err);
     server.close(() => process.exit(1));
 });
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
     server.close(() => process.exit(1));
