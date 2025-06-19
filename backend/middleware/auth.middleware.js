@@ -1,8 +1,8 @@
+// backend/middleware/auth.middleware.js
 import jwt from "jsonwebtoken";
-import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 
-export const verifyJWT = asyncHandler(async (req, res, next) => {
+export const verifyJWT = (req, res, next) => {
     try {
         const token = req.cookies?.accessToken || 
                      req.header("Authorization")?.replace("Bearer ", "");
@@ -17,4 +17,4 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     } catch (error) {
         throw new ApiError(401, error?.message || "Invalid access token");
     }
-});
+};
