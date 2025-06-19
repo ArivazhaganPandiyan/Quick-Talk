@@ -4,6 +4,8 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { fileURLToPath } from "url";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 
 // Routes
 import authRoutes from "./routes/auth.routes.js";
@@ -22,53 +24,89 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 5000;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
-// Middlewares
-app.use(express.json()); // Parse JSON payloads
-app.use(cookieParser()); // Parse cookies
+// Security Middlewares
+app.use(helmet());
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 500, // limit each IP to 500 requests per windowMs
+  })
+);
+
+// Standard Middlewares
+app.use(express.json({ limit: "16kb" }));
+app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, "public")));
+
+// CORS Configuration
+app.use(
+  cors({
+    origin: FRONTEND_URL,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
+
+// Handle preflight requests
+app.options("*", cors());
 
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 
-// ===== REMOVED FRONTEND SERVING =====
-// (Render should only serve backend API)
-// ====================================
+// Health Check Endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "healthy" });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        error: "Internal Server Error",
-        message: process.env.NODE_ENV === "development" ? err.message : undefined
-    });
+  console.error(err.stack);
+  res.status(500).json({
+    error: "Internal Server Error",
+    message: process.env.NODE_ENV === "development" ? err.message : undefined,
+  });
 });
 
 // Server startup
 const startServer = async () => {
-    try {
-        console.log("Connecting to MongoDB...");
-        await connectToMongoDB();
-        
-        server.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-            console.log(`Environment: ${process.env.NODE_ENV}`);
-        });
-    } catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
-    }
+  try {
+    console.log("Connecting to MongoDB...");
+    await connectToMongoDB();
+    
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(`Allowed Origin: ${FRONTEND_URL}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
 };
 
-startServer();
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received. Shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+});
 
 process.on("unhandledRejection", (err) => {
-    console.error("Unhandled Rejection:", err);
-    server.close(() => process.exit(1));
+  console.error("Unhandled Rejection:", err);
+  server.close(() => process.exit(1));
 });
 
 process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err);
-    server.close(() => process.exit(1));
+  console.error("Uncaught Exception:", err);
+  server.close(() => process.exit(1));
 });
+
+startServer();
