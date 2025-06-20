@@ -3,33 +3,27 @@ import User from "../models/user.model.js";
 
 export const getUsersForSidebar = async (req, res) => {
     try {
-        const loggedInUserId = req.user._id;
+        // Verify user exists in request
+        if (!req.user?._id) {
+            return res.status(401).json({ error: "Unauthorized - No user token" });
+        }
 
-        // More robust query with additional filtering
         const filteredUsers = await User.find({ 
-            _id: { $ne: loggedInUserId },
-            isActive: true // Example additional filter
-        })
-        .select("-password -refreshToken -__v -createdAt -updatedAt")
-        .sort({ username: 1 })
-        .lean(); // Convert to plain JS objects for better performance
+            _id: { $ne: req.user._id }
+        }).select("-password -refreshToken -__v")
+          .lean();
 
-        // Format response consistently
-        res.status(200).json({
-            success: true,
-            data: filteredUsers,
-            count: filteredUsers.length
-        });
+        if (!filteredUsers) {
+            return res.status(404).json({ error: "No users found" });
+        }
+
+        return res.status(200).json(filteredUsers);
 
     } catch (error) {
-        console.error("Error in getUsersForSidebar:", error);
-        
-        // Consistent error response format
-        res.status(500).json({ 
-            success: false,
-            error: "Internal Server Error",
-            message: process.env.NODE_ENV === "development" ? error.message : undefined,
-            stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+        console.error("User fetch error:", error);
+        return res.status(500).json({ 
+            error: "Server Error",
+            details: process.env.NODE_ENV === "development" ? error.message : undefined
         });
     }
 };
